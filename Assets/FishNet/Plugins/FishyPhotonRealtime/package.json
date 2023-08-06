@@ -1,0 +1,9 @@
+{
+  "name": "com.alven.fishnet.photonrealtime",
+  "displayName": "FishyPhotonRealtime",
+  "description": "PhotonRealtime transport for FishNet",
+  "version": "0.0.1",
+  "unity": "2020.3",
+  "author": "Alven (https://github.com/ooonush)",
+  "homepage": "https://github.com/ooonush/FishyPhotonRealtime"
+}
