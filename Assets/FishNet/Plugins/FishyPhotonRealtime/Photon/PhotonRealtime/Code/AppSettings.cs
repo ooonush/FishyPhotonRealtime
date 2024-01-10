@@ -47,6 +47,7 @@ namespace Photon.Realtime
         /// <summary>The AppVersion can be used to identify builds and will split the AppId distinct "Virtual AppIds" (important for matchmaking).</summary>
         public string AppVersion;
 
+
         /// <summary>If false, the app will attempt to connect to a Master Server (which is obsolete but sometimes still necessary).</summary>
         /// <remarks>if true, Server points to a NameServer (or is null, using the default), else it points to a MasterServer.</remarks>
         public bool UseNameServer = true;
@@ -57,9 +58,9 @@ namespace Photon.Realtime
 
         /// <summary>Set to a previous BestRegionSummary value before connecting.</summary>
         /// <remarks>
-        /// This is a value used when the client connects to the "Best Region".</br>
+        /// This is a value used when the client connects to the "Best Region".<br/>
         /// If this is null or empty, all regions gets pinged. Providing a previous summary on connect,
-        /// speeds up best region selection and makes the previously selected region "sticky".</br>
+        /// speeds up best region selection and makes the previously selected region "sticky".<br/>
         ///
         /// Unity clients should store the BestRegionSummary in the PlayerPrefs.
         /// You can store the new result by implementing <see cref="IConnectionCallbacks.OnConnectedToMaster"/>.

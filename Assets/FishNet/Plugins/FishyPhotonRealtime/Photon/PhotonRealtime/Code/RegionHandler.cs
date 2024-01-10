@@ -99,7 +99,19 @@ namespace Photon.Realtime
 
                 this.EnabledRegions.Sort((a, b) => a.Ping.CompareTo(b.Ping));
 
-                this.bestRegionCache = this.EnabledRegions[0];
+                // in some locations, clients will get very similar results to various regions.
+                // in those places, it is best to select alphabetical from those with very similar ping.
+                int similarPingCutoff = (int)(this.EnabledRegions[0].Ping * pingSimilarityFactor);
+                Region firstFromSimilar = this.EnabledRegions[0];
+                foreach (Region region in this.EnabledRegions)
+                {
+                    if (region.Ping <= similarPingCutoff && region.Code.CompareTo(firstFromSimilar.Code) < 0)
+                    {
+                        firstFromSimilar = region;
+                    }
+                }
+
+                this.bestRegionCache = firstFromSimilar;
                 return this.bestRegionCache;
             }
         }
@@ -115,7 +127,7 @@ namespace Photon.Realtime
         {
             get
             {
-                if (this.BestRegion != null)
+                if (this.BestRegion != null && this.BestRegion.Ping < RegionPinger.MaxMillisecondsPerPing)
                 {
                     return this.BestRegion.Code + ";" + this.BestRegion.Ping + ";" + this.availableRegionCodes;
                 }
@@ -189,12 +201,25 @@ namespace Photon.Realtime
         private readonly List<RegionPinger> pingerList = new List<RegionPinger>();
         private Action<RegionHandler> onCompleteCall;
         private int previousPing;
-
-
         private string previousSummaryProvided;
 
         /// <summary>If non-zero, this port will be used to ping Master Servers on.</summary>
         protected internal static ushort PortToPingOverride;
+
+        /// <summary>If the previous Best Region's ping is now higher by this much, ping all regions and find a new Best Region.</summary>
+        private float rePingFactor = 1.2f;
+
+        /// <summary>How much higher a region's ping can be from the absolute best, to be considered the Best Region (by ping and name).</summary>
+        private float pingSimilarityFactor = 1.2f;
+
+        /// <summary>If the region from a previous BestRegionSummary now has a ping higher than this limit, all regions get pinged again to find a better. Default: 90ms.</summary>
+        /// <remarks>
+        /// Pinging all regions takes time, which is why a BestRegionSummary gets stored.
+        /// If that is available, the Best Region becomes sticky and is used again.
+        /// This limit introduces an exception: Should the pre-defined best region have a ping worse than this, all regions are considered.
+        /// </remarks>
+        public int BestRegionSummaryPingLimit = 90;
+
 
         /// <summary>True if the available regions are being pinged currently.</summary>
         public bool IsPinging { get; private set; }
@@ -202,7 +227,6 @@ namespace Photon.Realtime
         /// <summary>True if the pinging of regions is being aborted.</summary>
         /// <see cref="Abort"/>
         public bool Aborted { get; private set; }
-
         #if SUPPORTED_UNITY
         private MonoBehaviourEmpty emptyMonoBehavior;
         #endif
@@ -334,7 +358,7 @@ namespace Photon.Realtime
 
         private void OnPreferredRegionPinged(Region preferredRegion)
         {
-            if (preferredRegion.Ping > this.previousPing * 1.50f)
+            if (preferredRegion.Ping > this.BestRegionSummaryPingLimit || preferredRegion.Ping > this.previousPing * this.rePingFactor)
             {
                 this.PingEnabledRegions();
             }
@@ -346,6 +370,8 @@ namespace Photon.Realtime
         }
 
 
+        /// <summary>Privately used to ping regions if the current best one isn't as fast as earlier.</summary>
+        /// <returns>If pinging can be started.</returns>
         private bool PingEnabledRegions()
         {
             if (this.EnabledRegions == null || this.EnabledRegions.Count == 0)
@@ -404,9 +430,9 @@ namespace Photon.Realtime
         /// <summary>How often to ping a region.</summary>
         public static int Attempts = 5;
         /// <summary>How long to wait maximum for a response.</summary>
-        public static int MaxMilliseconsPerPing = 800; // enter a value you're sure some server can beat (have a lower rtt)
+        public static int MaxMillisecondsPerPing = 800; // enter a value you're sure some server can beat (have a lower rtt)
         /// <summary>Ping result when pinging failed.</summary>
-        public static int PingWhenFailed = Attempts * MaxMilliseconsPerPing;
+        public static int PingWhenFailed = Attempts * MaxMillisecondsPerPing;
 
         /// <summary>Current ping attempt count.</summary>
         public int CurrentAttempt = 0;
@@ -574,9 +600,9 @@ namespace Photon.Realtime
 
                 while (!this.ping.Done())
                 {
-                    if (sw.ElapsedMilliseconds >= MaxMilliseconsPerPing)
+                    if (sw.ElapsedMilliseconds >= MaxMillisecondsPerPing)
                     {
-                        // if ping.Done() did not become true in MaxMilliseconsPerPing, ping.Successful is false and we apply MaxMilliseconsPerPing as rtt below
+                        // if ping.Done() did not become true in MaxMillisecondsPerPing, ping.Successful is false and we apply MaxMillisecondsPerPing as rtt below
                         break;
                     }
                     #if !NETFX_CORE
@@ -586,7 +612,7 @@ namespace Photon.Realtime
 
 
                 sw.Stop();
-                int rtt = this.ping.Successful ? (int)sw.ElapsedMilliseconds : MaxMilliseconsPerPing;   // if the reply didn't match the sent ping
+                int rtt = this.ping.Successful ? (int)sw.ElapsedMilliseconds : MaxMillisecondsPerPing;   // if the reply didn't match the sent ping
                 this.rttResults.Add(rtt);
 
                 rttSum += rtt;
@@ -609,10 +635,13 @@ namespace Photon.Realtime
             this.Done = true;
             this.ping.Dispose();
 
-            int bestRtt = this.rttResults.Min();
-            int worstRtt = this.rttResults.Max();
-            int weighedRttSum = rttSum - worstRtt + bestRtt;
-            this.region.Ping = (int)(weighedRttSum / replyCount);   // now, we can create a weighted ping value
+            if (this.rttResults.Count > 1 && replyCount > 0)
+            {
+                int bestRtt = this.rttResults.Min();
+                int worstRtt = this.rttResults.Max();
+                int weighedRttSum = rttSum - worstRtt + bestRtt;
+                this.region.Ping = (int)(weighedRttSum / replyCount); // now, we can create a weighted ping value
+            }
 
             this.onDoneCall(this.region);
             return false;
@@ -656,7 +685,7 @@ namespace Photon.Realtime
 
                 while (!this.ping.Done())
                 {
-                    if (sw.ElapsedMilliseconds >= MaxMilliseconsPerPing)
+                    if (sw.ElapsedMilliseconds >= MaxMillisecondsPerPing)
                     {
                         // if ping.Done() did not become true in MaxMilliseconsPerPing, ping.Successful is false and we apply MaxMilliseconsPerPing as rtt below
                         break;
@@ -667,7 +696,7 @@ namespace Photon.Realtime
 
 
                 sw.Stop();
-                int rtt = this.ping.Successful ? (int)sw.ElapsedMilliseconds : MaxMilliseconsPerPing; // if the reply didn't match the sent ping
+                int rtt = this.ping.Successful ? (int)sw.ElapsedMilliseconds : MaxMillisecondsPerPing; // if the reply didn't match the sent ping
                 this.rttResults.Add(rtt);
 
 
@@ -689,10 +718,15 @@ namespace Photon.Realtime
             //Debug.Log("Done: "+ this.region.Code);
             this.Done = true;
             this.ping.Dispose();
-            int bestRtt = this.rttResults.Min();
-            int worstRtt = this.rttResults.Max();
-            int weighedRttSum = rttSum - worstRtt + bestRtt;
-            this.region.Ping = (int)(weighedRttSum / replyCount); // now, we can create a weighted ping value
+            
+            if (this.rttResults.Count > 1 && replyCount > 0)
+            {
+                int bestRtt = this.rttResults.Min();
+                int worstRtt = this.rttResults.Max();
+                int weighedRttSum = rttSum - worstRtt + bestRtt;
+                this.region.Ping = (int)(weighedRttSum / replyCount); // now, we can create a weighted ping value
+            }
+
             this.onDoneCall(this.region);
             yield return null;
         }

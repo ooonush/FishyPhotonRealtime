@@ -3,6 +3,38 @@ Photon Realtime C# Client - Changelog
 Exit Games GmbH - www.photonengine.com - forum.photonengine.com
 
 
+
+Version 4.1.7.4 (13. December 2023 - rev7284)
+    Added: Matchmaking Ticket support. Tickets can be written server side (in a plugin or some backend) to define some parameters for the client. For example, a ticket can contain a list of party members who should join the same room or a room name to join or other parameters. More to be added to the online docs soon.
+    Fixed: Potential InvalidOperationException in RegionHandler if pinging failed to get any results.
+
+Version 4.1.7.3 (07. December 2023 - rev7252)
+    Changed: Best Region selection. From a shortlist of similar regions, we now pick a code alphabetically (improving determinism). In some locations, clients will get very similar results to various regions.
+    Added: Private RegionHandler.pingSimilarityFactor to calculate the max ping value for "similar results".
+
+Version 4.1.7.2 (20. September 2023 - rev7218)
+	Added: MaxPlayer support for more than 255 players. With a recent server version, it is now possible to define larger limits without setting the room's capability to infinite (0).
+	Changed: To work around an issue while running a WebGL-project in Editor, Realtime will use http instead of https to ping servers. For unknown reasons, the https ping in Editor (and only there) is delayed considerable in some cases, ruining the ping results).
+
+Version 4.1.7.1 (06. September 2023 - rev7148)
+    No notable changes.
+
+Version 4.1.7.0 (18. August 2023 - rev7111)
+    Added: Class SystemConnectionSummary, which wraps up network-related conditions on the client when it gets created. It relies on Unity's callbacks and requires a ConnectionHandler to be present in the scene (as implementation of a MonoBehaviour getting the callbacks). Check the reference doc for details on how to put it to use.
+    Added: LoadBalancingClient.SystemConnectionSummary, created for DisconnectCause.ExceptionOnConnect, DisconnectCause.Exception, DisconnectCause.ServerTimeout and DisconnectCause.ClientTimeout.
+    Added: Error logging to each place that creates a SystemConnectionSummary (in LoadBalancingClient).
+    Changed: Order of a few switch-cases in LBC.OnStatusChanged() for organizational reasons (the cases which create a SystemConnectionSummary are closer together this way).
+    Changed: LBC.DisconnectedCause is reset before calling PhotonPeer.Connect(). This should be set before the connect and not only if Connect() returns true.
+    Added: PhotonRealtime.asmdef (and meta file) to Unity SDK. This should be the same for all of our SDKs (PUN, Quantum, Voice).
+
+Version 4.1.6.26 (09. August 2023 - rev7077)
+    Changed: Name Server default port for WS is now 80, WSS is 443.
+    Changed: client.State = ClientState.Joined is set in GameEnteredOnGameServer() if room-events are suppressed. Otherwise it is now set by event Join. This change aligns the state change with the callback calls.
+    Changed: The SummaryToCache will not include a best region, if none of the regions was pinged successfully.
+    Added: RegionHandler.BestRegionSummaryPingLimit to ping all regions if the current best region is worse than this limit. Default: 90ms.
+    Changed: Demo Particle, GameLogic-class to check the Server Type instead of the client's State, when it entered a room on the Game Server.
+    Note: This is affected by the changes we did to set the State from joining to joined! In best case, you would use the callback OnJoinedRoom() which is independent.
+
 Version 4.1.6.25 (05. June 2023 - rev6925)
     No notable changes.
 
@@ -25,6 +57,7 @@ Version 4.1.6.20  (23. September 2022 - rev6568)
     No notable changes.
 
 Version 4.1.6.19 (12. October 2022 - rev6519)
+    No notable changes.
 
 Version 4.1.6.18f2 (23. September 2022 - rev6505)
     Fixed: RegionHandler compatibility when not running in-Unity. MonoBehaviourEmpty is only used conditionally.

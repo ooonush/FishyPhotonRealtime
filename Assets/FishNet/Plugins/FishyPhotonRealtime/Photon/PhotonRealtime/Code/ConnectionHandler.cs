@@ -64,6 +64,14 @@ namespace Photon.Realtime
         /// <summary>Indicates that the app is closing. Set in OnApplicationQuit().</summary>
         [NonSerialized]
         public static bool AppQuits;
+        [NonSerialized]
+        public static bool AppPause;
+        [NonSerialized]
+        public static bool AppPauseRecent;
+        [NonSerialized]
+        public static bool AppOutOfFocus;
+        [NonSerialized]
+        public static bool AppOutOfFocusRecent;
 
 
         private byte fallbackThreadId = 255;
@@ -82,16 +90,13 @@ namespace Photon.Realtime
         static void StaticReset()
         {
             AppQuits = false;
+            AppPause = false;
+            AppPauseRecent = false;
+            AppOutOfFocus = false;
+            AppOutOfFocusRecent = false;
         }
 
         #endif
-
-
-        /// <summary>Called by Unity when the application gets closed. The UnityEngine will also call OnDisable, which disconnects.</summary>
-        protected void OnApplicationQuit()
-        {
-            AppQuits = true;
-        }
 
 
         /// <summary></summary>
@@ -120,8 +125,70 @@ namespace Photon.Realtime
             }
         }
 
+
+        /// <summary>Called by Unity when the application gets closed. The UnityEngine will also call OnDisable, which disconnects.</summary>
+        public void OnApplicationQuit()
+        {
+            AppQuits = true;
+        }
+
+        /// <summary>Called by Unity when the application gets paused or resumed.</summary>
+        public void OnApplicationPause(bool pause)
+        {
+            AppPause = pause;
+
+            if (pause)
+            {
+                AppPauseRecent = true;
+                this.CancelInvoke(nameof(this.ResetAppPauseRecent));
+            }
+            else
+            {
+                Invoke(nameof(this.ResetAppPauseRecent), 5f);
+            }
+        }
+
+        private void ResetAppPauseRecent()
+        {
+            AppPauseRecent = false;
+        }
+
+        /// <summary>Called by Unity when the application changes focus.</summary>
+        public void OnApplicationFocus(bool focus)
+        {
+            AppOutOfFocus = !focus;
+            if (!focus)
+            {
+                AppOutOfFocusRecent = true;
+                this.CancelInvoke(nameof(this.ResetAppOutOfFocusRecent));
+            }
+            else
+            {
+                this.Invoke(nameof(this.ResetAppOutOfFocusRecent), 5f);
+            }
+        }
+
+        private void ResetAppOutOfFocusRecent()
+        {
+            AppOutOfFocusRecent = false;
+        }
+
+
         #endif
 
+
+        /// <summary>
+        /// When run in Unity, this returns Application.internetReachability != NetworkReachability.NotReachable.
+        /// </summary>
+        /// <returns>Application.internetReachability != NetworkReachability.NotReachable</returns>
+        public static bool IsNetworkReachableUnity()
+        {
+            #if SUPPORTED_UNITY
+            return Application.internetReachability != NetworkReachability.NotReachable;
+            #else
+            return true;
+            #endif
+        }
 
         public void StartFallbackSendAckThread()
         {

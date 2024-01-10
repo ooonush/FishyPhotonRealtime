@@ -362,14 +362,14 @@ namespace Photon.Realtime
 			Debug.Log(this.GetFormattedTimestamp() + " SupportLogger OnRegionListReceived(regionHandler).");
         }
 
-        public void OnRoomListUpdate(List<RoomInfo> rooms)
+        public void OnRoomListUpdate(List<RoomInfo> roomList)
         {
-			Debug.Log(this.GetFormattedTimestamp() + " SupportLogger OnRoomListUpdate(roomList). roomList.Count: " + rooms.Count);
+			Debug.Log(this.GetFormattedTimestamp() + " SupportLogger OnRoomListUpdate(roomList). roomList.Count: " + roomList.Count);
         }
 
-        public void OnPlayerEnteredRoom(Player player)
+        public void OnPlayerEnteredRoom(Player newPlayer)
         {
-			Debug.Log(this.GetFormattedTimestamp() + " SupportLogger OnPlayerEnteredRoom(" + player+").");
+			Debug.Log(this.GetFormattedTimestamp() + " SupportLogger OnPlayerEnteredRoom(" + newPlayer+").");
         }
 
         public void OnPlayerLeftRoom(Player otherPlayer)
