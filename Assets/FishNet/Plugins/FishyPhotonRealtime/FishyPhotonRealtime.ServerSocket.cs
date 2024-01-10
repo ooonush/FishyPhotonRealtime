@@ -1,4 +1,5 @@
 ﻿using Photon.Realtime;
+using UnityEngine;
 
 namespace FishNet.Transporting.PhotonRealtime
 {
@@ -6,31 +7,34 @@ namespace FishNet.Transporting.PhotonRealtime
     {
         private LocalConnectionState _serverState;
 
-        private bool StartServer()
+        private bool IsServerStarting => _serverState == LocalConnectionState.Starting;
+        private bool IsServerStarted => _serverState == LocalConnectionState.Started;
+        private bool IsServerStopping => _serverState == LocalConnectionState.Stopping;
+        private bool IsServerStopped => _serverState == LocalConnectionState.Stopped;
+
+        public bool StartServer(CreateRoomData createRoomData = null)
         {
-            if (_serverState != LocalConnectionState.Stopped) return false;
+            EnterRoomParams enterRoomParams = GetEnterRoomParams(createRoomData);
+            return StartServer(enterRoomParams);
+        }
+
+        private bool StartServer(EnterRoomParams enterRoomParams)
+        {
+            if (!IsServerStopped) return false;
 
             SetServerConnectionState(LocalConnectionState.Starting);
 
-            Client.AddCallbackTarget(this);
-
-            bool succeeded = Client.OpCreateRoom(new EnterRoomParams
+            if (_client.OpCreateRoom(enterRoomParams))
             {
-                RoomOptions = new RoomOptions
-                {
-                    MaxPlayers = _maxPlayers
-                }
-            });
-
-            if (!succeeded)
-            {
-                SetClientConnectionState(LocalConnectionState.Stopping);
-                SetClientConnectionState(LocalConnectionState.Stopped);
+                Debug.Log(Time.time);
+                InitializeNetwork();
+                return true;
             }
-
-            return succeeded;
+            
+            SetServerConnectionState(LocalConnectionState.Stopped);
+            return false;
         }
-  
+
         private void SetServerConnectionState(LocalConnectionState state)
         {
             _serverState = state;
@@ -45,19 +49,22 @@ namespace FishNet.Transporting.PhotonRealtime
 
         private bool StopServer()
         {
-            if (_serverState == LocalConnectionState.Stopping || _serverState == LocalConnectionState.Stopped)
+            if (IsServerStopping || IsServerStopped)
             {
                 return false;
             }
 
-            if (_clientState == LocalConnectionState.Starting || _clientState == LocalConnectionState.Started)
+            if (IsClientStarting || IsClientStarted)
             {
                 StopClientHost();
             }
 
             SetServerConnectionState(LocalConnectionState.Stopping);
-            LeaveRoom();
-            Client.RemoveCallbackTarget(this);
+            if (_client.InRoom)
+            {
+                _client.OpLeaveRoom(false);
+            }
+            DeinitializeNetwork();
             SetServerConnectionState(LocalConnectionState.Stopped);
 
             return true;

@@ -2,7 +2,10 @@
     "name": "FishyPhotonRealtime",
     "rootNamespace": "FishNet.Transporting.PhotonRealtime",
     "references": [
-        "GUID:7c88a4a7926ee5145ad2dfa06f454c67"
+        "GUID:7c88a4a7926ee5145ad2dfa06f454c67",
+        "GUID:831409e8f9d13b5479a3baef9822ad34",
+        "GUID:f51ebe6a0ceec4240a699833d6309b23",
+        "GUID:35101f455c979e94c9a0a4793484b7fd"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

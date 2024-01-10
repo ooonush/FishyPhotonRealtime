@@ -1,87 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using FishNet.Utility.Performance;
+using Photon.Realtime;
 
 namespace FishNet.Transporting.PhotonRealtime
 {
     public partial class FishyPhotonRealtime
     {
-        private LocalConnectionState _clientState;
-
-        private void SetClientConnectionState(LocalConnectionState state)
-        {
-            _clientState = state;
-            HandleClientConnectionState(new ClientConnectionStateArgs(state, Index));
-        }
-
-        private bool StartClient()
-        {
-            if (_clientState != LocalConnectionState.Stopped) return false;
-
-            if (_serverState == LocalConnectionState.Stopping || _serverState == LocalConnectionState.Stopped)
-            {
-                SetClientConnectionState(LocalConnectionState.Starting);
-                Client.AddCallbackTarget(this);
-                return Client.OpJoinRandomRoom();
-            }
-
-            return StartClientHost();
-        }
-
-        private bool StartClientHost()
-        {
-            if (_clientState != LocalConnectionState.Stopped) return false;
-
-            SetClientConnectionState(LocalConnectionState.Starting);
-
-            if (_serverState != LocalConnectionState.Started) return true;
-
-            HandleRemoteConnectionState(RemoteConnectionState.Started, Client.LocalPlayer.ActorNumber);
-            SetClientConnectionState(LocalConnectionState.Started);
-
-            return true;
-        }
-
-        private bool StopClient()
-        {
-            if (_clientState == LocalConnectionState.Stopping || _clientState == LocalConnectionState.Stopped)
-            {
-                return false;
-            }
-
-            if (_serverState == LocalConnectionState.Starting || _serverState == LocalConnectionState.Started)
-            {
-                return StopClientHost();
-            }
-
-            SetClientConnectionState(LocalConnectionState.Stopping);
-            LeaveRoom();
-            SetClientConnectionState(LocalConnectionState.Stopped);
-            Client.RemoveCallbackTarget(this);
-
-            return true;
-        }
-
-        private bool StopClientHost()
-        {
-            if (_serverState == LocalConnectionState.Stopping || _serverState == LocalConnectionState.Stopped)
-            {
-                return false;
-            }
-
-            if (_clientState == LocalConnectionState.Stopping || _clientState == LocalConnectionState.Stopped)
-            {
-                return false;
-            }
-
-            SetClientConnectionState(LocalConnectionState.Stopping);
-            HandleRemoteConnectionState(RemoteConnectionState.Stopped, Client.LocalPlayer.ActorNumber);
-            DisposeClientHost();
-            SetClientConnectionState(LocalConnectionState.Stopped);
-
-            return true;
-        }
-
         private readonly struct ClientHostSendData
         {
             public byte[] Data { get; }
@@ -102,6 +27,133 @@ namespace FishNet.Transporting.PhotonRealtime
         private Queue<ClientHostSendData> _clientHostSendQueue;
         private Queue<ClientHostSendData> _clientHostReceiveQueue;
 
+        private LocalConnectionState _clientState;
+
+        private bool IsClientStarting => _clientState == LocalConnectionState.Starting;
+        private bool IsClientStarted => _clientState == LocalConnectionState.Started;
+        private bool IsClientStopping => _clientState == LocalConnectionState.Stopping;
+        private bool IsClientStopped => _clientState == LocalConnectionState.Stopped;
+
+        private void SetClientConnectionState(LocalConnectionState state)
+        {
+            if (_clientState == state) return;
+            
+            if (state == LocalConnectionState.Stopped && IsClientStopping)
+            {
+                SetClientConnectionState(LocalConnectionState.Stopping);
+            }
+            
+            _clientState = state;
+            HandleClientConnectionState(new ClientConnectionStateArgs(state, Index));
+        }
+
+        private bool StopClient()
+        {
+            if (IsClientStopping || IsClientStopped)
+            {
+                return false;
+            }
+
+            if (IsServerStarting || IsServerStarted)
+            {
+                return StopClientHost();
+            }
+
+            SetClientConnectionState(LocalConnectionState.Stopping);
+
+            if (_client.InRoom)
+            {
+                _client.OpLeaveRoom(false);
+            }
+            DeinitializeNetwork();
+
+            SetClientConnectionState(LocalConnectionState.Stopped);
+
+            return true;
+        }
+
+        private bool CanStartClient => IsClientStopped && !IsServerStopping;
+
+        public bool StartClient(JoinRoomData joinRoomData = null)
+        {
+            return StartClient(GetEnterRoomParams(joinRoomData));
+        }
+
+        public bool StartClientRandomRoom(JoinRandomRoomData joinRandomRoomData = null)
+        {
+            return StartClientRandomRoom(GetJoinRandomRoomParams(joinRandomRoomData));
+        }
+
+        private bool StartClientHost()
+        {
+            if (!IsServerStarted) return IsServerStarting;
+            HandleRemoteConnectionState(RemoteConnectionState.Started, _client.LocalPlayer.ActorNumber);
+            SetClientConnectionState(LocalConnectionState.Started);
+            return true;
+        }
+
+        private bool StartClient(EnterRoomParams enterRoomParams)
+        {
+            if (!CanStartClient) return false;
+
+            SetClientConnectionState(LocalConnectionState.Starting);
+
+            if (IsServerStarted || IsServerStarting)
+            {
+                return StartClientHost();
+            }
+
+            if (_client.OpJoinRoom(enterRoomParams))
+            {
+                InitializeNetwork();
+                return true;
+            }
+
+            SetClientConnectionState(LocalConnectionState.Stopped);
+            return false;
+        }
+
+        private bool StartClientRandomRoom(OpJoinRandomRoomParams joinRandomRoomParams)
+        {
+            if (!CanStartClient) return false;
+
+            SetClientConnectionState(LocalConnectionState.Starting);
+
+            if (IsServerStarted || IsServerStarting)
+            {
+                return StartClientHost();
+            }
+
+            if (_client.OpJoinRandomRoom(joinRandomRoomParams))
+            {
+                InitializeNetwork();
+                return true;
+            }
+
+            SetClientConnectionState(LocalConnectionState.Stopped);
+            return false;
+        }
+
+        private bool StopClientHost()
+        {
+            if (IsServerStopping || IsServerStopped)
+            {
+                return false;
+            }
+
+            if (IsClientStopping || IsClientStopped)
+            {
+                return false;
+            }
+
+            SetClientConnectionState(LocalConnectionState.Stopping);
+            HandleRemoteConnectionState(RemoteConnectionState.Stopped, _client.LocalPlayer.ActorNumber);
+            DisposeClientHost();
+            SetClientConnectionState(LocalConnectionState.Stopped);
+
+            return true;
+        }
+
         private void DisposeClientHost()
         {
             _clientHostSendQueue?.Clear();
@@ -119,7 +171,7 @@ namespace FishNet.Transporting.PhotonRealtime
                 {
                     ClientHostSendData packet = _clientHostSendQueue.Dequeue();
                     var segment = new ArraySegment<byte>(packet.Data, 0, packet.Length);
-                    int clientId = Client.LocalPlayer.ActorNumber;
+                    int clientId = _client.LocalPlayer.ActorNumber;
                     HandleServerReceivedDataArgs(new ServerReceivedDataArgs(segment, packet.Channel, clientId,
                         Index));
                 }
@@ -136,7 +188,7 @@ namespace FishNet.Transporting.PhotonRealtime
             }
         }
 
-        private void SendServerToClientHost(int channelId, ArraySegment<byte> payload)
+        private void SendToClientHost(int channelId, ArraySegment<byte> payload)
         {
             _clientHostReceiveQueue ??= new Queue<ClientHostSendData>();
 

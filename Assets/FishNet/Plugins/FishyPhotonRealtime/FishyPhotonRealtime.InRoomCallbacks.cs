@@ -1,5 +1,7 @@
-﻿using ExitGames.Client.Photon;
+﻿using System;
+using ExitGames.Client.Photon;
 using Photon.Realtime;
+using UnityEngine;
 
 namespace FishNet.Transporting.PhotonRealtime
 {
@@ -7,21 +9,24 @@ namespace FishNet.Transporting.PhotonRealtime
     {
         void IInRoomCallbacks.OnPlayerEnteredRoom(Player player)
         {
-            if (NetworkManager.IsServer)
+            Debug.Log("OnPlayerEnteredRoom " + player.ActorNumber);
+            if (IsServerStarted)
             {
                 HandleRemoteConnectionState(RemoteConnectionState.Started, player.ActorNumber);
             }
         }
 
-        void IInRoomCallbacks.OnPlayerLeftRoom(Player otherPlayer)
+        void IInRoomCallbacks.OnPlayerLeftRoom(Player player)
         {
-            if (NetworkManager.IsServer)
+            Debug.Log("OnPlayerLeftRoom " + player.ActorNumber);
+            if (IsServerStarted)
             {
-                HandleRemoteConnectionState(RemoteConnectionState.Stopped, otherPlayer.ActorNumber);
+                HandleRemoteConnectionState(RemoteConnectionState.Stopped, player.ActorNumber);
             }
-
-            if (Equals(otherPlayer, Client.LocalPlayer))
+            
+            if (player.ActorNumber == _client.LocalPlayer.ActorNumber)
             {
+                Debug.Log("OnLeftRoom");
                 Shutdown();
             }
         }
@@ -30,6 +35,9 @@ namespace FishNet.Transporting.PhotonRealtime
 
         void IInRoomCallbacks.OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps) { }
 
-        void IInRoomCallbacks.OnMasterClientSwitched(Player newMasterClient) { }
+        void IInRoomCallbacks.OnMasterClientSwitched(Player newMasterClient)
+        {
+            throw new InvalidOperationException("Transport not support switching master client.");
+        }
     }
 }

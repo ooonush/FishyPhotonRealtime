@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using Photon.Realtime;
 using UnityEngine;
 
@@ -6,60 +7,52 @@ namespace FishNet.Transporting.PhotonRealtime
 {
     public partial class FishyPhotonRealtime : IMatchmakingCallbacks
     {
-        void IMatchmakingCallbacks.OnJoinedRoom()
+        void IMatchmakingCallbacks.OnCreatedRoom()
         {
-            //If started server
-            if (Client.LocalPlayer.IsMasterClient)
+            foreach (DictionaryEntry property in _client.CurrentRoom.CustomProperties)
             {
-                SetServerConnectionState(LocalConnectionState.Started);
-                if (_clientState == LocalConnectionState.Starting) // ClientHost started...
-                {
-                    int hostClientId = Client.LocalPlayer.ActorNumber;
-                    var args = new RemoteConnectionStateArgs(RemoteConnectionState.Started, hostClientId, Index);
-                    HandleRemoteConnectionState(args);
-
-                    SetClientConnectionState(LocalConnectionState.Started);
-                }
-            }
-            else
-            {
-                SetClientConnectionState(LocalConnectionState.Started);
-            }
-        }
-
-        void IMatchmakingCallbacks.OnJoinRandomFailed(short returnCode, string message)
-        {
-            Debug.LogWarning("Join Random Room Failed: " + message);
-            SetClientConnectionState(LocalConnectionState.Stopped);
-        }
-
-        void IMatchmakingCallbacks.OnLeftRoom()
-        {
-            Shutdown();
-            if (_clientState != LocalConnectionState.Stopped)
-            {
-                SetClientConnectionState(LocalConnectionState.Stopped);
-            }
-            if (_serverState != LocalConnectionState.Stopped)
-            {
-                SetServerConnectionState(LocalConnectionState.Stopped);
+                Debug.Log(property.Value);
             }
         }
 
         void IMatchmakingCallbacks.OnCreateRoomFailed(short returnCode, string message)
         {
-            NetworkManager.LogWarning(message);
-            SetServerConnectionState(LocalConnectionState.Stopped);
+            NetworkManager.LogWarning($"CreateRoom failed. ReturnCode: {returnCode} Message: {message}");
+            StopConnection(true);
+        }
+
+        void IMatchmakingCallbacks.OnJoinedRoom()
+        {
+            if (_client.LocalPlayer.IsMasterClient && !IsServerStarted)
+            {
+                SetServerConnectionState(LocalConnectionState.Started);
+            }
+            if (IsClientStarting)
+            {
+                SetClientConnectionState(LocalConnectionState.Started);
+            }
         }
 
         void IMatchmakingCallbacks.OnJoinRoomFailed(short returnCode, string message)
         {
-            NetworkManager.LogWarning(message);
-            SetClientConnectionState(LocalConnectionState.Stopped);
+            NetworkManager.LogWarning($"JoinRoom failed. ReturnCode: {returnCode} Message: {message}");
+            StopConnection(false);
         }
 
-        void IMatchmakingCallbacks.OnFriendListUpdate(List<FriendInfo> friendList) { }
+        void IMatchmakingCallbacks.OnJoinRandomFailed(short returnCode, string message)
+        {
+            NetworkManager.LogWarning($"JoinRandomRoom failed. ReturnCode: {returnCode} Message: {message}");
+            StopConnection(false);
+        }
 
-        void IMatchmakingCallbacks.OnCreatedRoom() { }
+        void IMatchmakingCallbacks.OnLeftRoom()
+        {
+            Debug.Log("OnLeftRoom");
+            StopConnection(false);
+        }
+
+        void IMatchmakingCallbacks.OnFriendListUpdate(List<FriendInfo> friendList)
+        {
+        }
     }
 }
