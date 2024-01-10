@@ -32,10 +32,10 @@ namespace FishNet.Transporting.PhotonRealtime
         public int MaxPlayers;
 
         [Tooltip("Time To Live (TTL) for an 'actor' in a room. If a client disconnects, this actor is inactive first and removed after this timeout. In milliseconds.")]
-        public int PlayerTtl;
+        public const int PlayerTtl = 0;
 
         [Tooltip("Time To Live (TTL) for a room when the last player leaves. Keeps room in memory for case a player re-joins soon. In milliseconds.")]
-        public int EmptyRoomTtl;
+        public const int EmptyRoomTtl = 0;
 
         /// <remarks>
         /// This makes sense when in rooms where players can't place items in the room and just vanish entirely.
@@ -43,7 +43,7 @@ namespace FishNet.Transporting.PhotonRealtime
         /// Default: true. Cleans up the cache and props of leaving users.
         /// </remarks>
         [Tooltip("Removes a user's events and properties from the room when a user leaves.")]
-        public bool CleanupCacheOnLeave = true;
+        public const bool CleanupCacheOnLeave = true;
 
         /// <remarks>
         /// Using this makes the client unaware of the other players in a room.

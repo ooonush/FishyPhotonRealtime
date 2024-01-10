@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using FishNet.Utility.Performance;
 using Photon.Realtime;
 
@@ -34,6 +35,47 @@ namespace FishNet.Transporting.PhotonRealtime
         private bool IsClientStopping => _clientState == LocalConnectionState.Stopping;
         private bool IsClientStopped => _clientState == LocalConnectionState.Stopped;
 
+        private bool CanStartClient => IsClientStopped && !IsServerStopping;
+
+        public bool StartClient(JoinRoomData joinRoomData = null)
+        {
+            if (StartClient(GetEnterRoomParams(joinRoomData), out Task task))
+            {
+                Run(task);
+                return true;
+            }
+            return false;
+        }
+
+        public bool StartClientRandomRoom(JoinRandomRoomData joinRandomRoomData = null)
+        {
+            if (StartClientRandomRoom(GetJoinRandomRoomParams(joinRandomRoomData), out Task task))
+            {
+                Run(task);
+                return true;
+            }
+
+            return false;
+        }
+
+        public async Task StartClientAsync(JoinRoomData joinRoomData = null)
+        {
+            if (StartClient(GetEnterRoomParams(joinRoomData), out Task task))
+            {
+                await task;
+            }
+            throw new Exception("Failed to start client.");
+        }
+
+        public async Task StartClientRandomRoomAsync(JoinRandomRoomData joinRandomRoomData = null)
+        {
+            if (StartClientRandomRoom(GetJoinRandomRoomParams(joinRandomRoomData), out Task task))
+            {
+                await task;
+            }
+            throw new Exception("Failed to start client.");
+        }
+
         private void SetClientConnectionState(LocalConnectionState state)
         {
             if (_clientState == state) return;
@@ -65,47 +107,28 @@ namespace FishNet.Transporting.PhotonRealtime
             {
                 _client.OpLeaveRoom(false);
             }
-            DeinitializeNetwork();
 
             SetClientConnectionState(LocalConnectionState.Stopped);
 
             return true;
         }
 
-        private bool CanStartClient => IsClientStopped && !IsServerStopping;
-
-        public bool StartClient(JoinRoomData joinRoomData = null)
+        private bool StartClient(EnterRoomParams enterRoomParams, out Task task)
         {
-            return StartClient(GetEnterRoomParams(joinRoomData));
-        }
-
-        public bool StartClientRandomRoom(JoinRandomRoomData joinRandomRoomData = null)
-        {
-            return StartClientRandomRoom(GetJoinRandomRoomParams(joinRandomRoomData));
-        }
-
-        private bool StartClientHost()
-        {
-            if (!IsServerStarted) return IsServerStarting;
-            HandleRemoteConnectionState(RemoteConnectionState.Started, _client.LocalPlayer.ActorNumber);
-            SetClientConnectionState(LocalConnectionState.Started);
-            return true;
-        }
-
-        private bool StartClient(EnterRoomParams enterRoomParams)
-        {
+            task = null;
             if (!CanStartClient) return false;
 
             SetClientConnectionState(LocalConnectionState.Starting);
 
             if (IsServerStarted || IsServerStarting)
             {
+                task = Task.CompletedTask;
                 return StartClientHost();
             }
 
             if (_client.OpJoinRoom(enterRoomParams))
             {
-                InitializeNetwork();
+                task = HandleClientStartingAsync(new JoinRoomOperationHandler(_client));
                 return true;
             }
 
@@ -113,8 +136,9 @@ namespace FishNet.Transporting.PhotonRealtime
             return false;
         }
 
-        private bool StartClientRandomRoom(OpJoinRandomRoomParams joinRandomRoomParams)
+        private bool StartClientRandomRoom(OpJoinRandomRoomParams joinRandomRoomParams, out Task task)
         {
+            task = null;
             if (!CanStartClient) return false;
 
             SetClientConnectionState(LocalConnectionState.Starting);
@@ -126,12 +150,39 @@ namespace FishNet.Transporting.PhotonRealtime
 
             if (_client.OpJoinRandomRoom(joinRandomRoomParams))
             {
-                InitializeNetwork();
+                task = HandleClientStartingAsync(new JoinRoomOperationHandler(_client));
                 return true;
             }
 
             SetClientConnectionState(LocalConnectionState.Stopped);
             return false;
+        }
+
+        private async Task HandleClientStartingAsync(RealtimeOperationHandler operationHandler)
+        {
+            try
+            {
+                await operationHandler.Task;
+            }
+            catch (Exception)
+            {
+                StopClient();
+                throw;
+            }
+            if (_client.LocalPlayer.IsMasterClient)
+            {
+                StopClient();
+                throw new Exception("Server in this room disconnected.");
+            }
+            SetClientConnectionState(LocalConnectionState.Started);
+        }
+
+        private bool StartClientHost()
+        {
+            if (!IsServerStarted) return IsServerStarting;
+            HandleRemoteConnectionState(RemoteConnectionState.Started, _client.LocalPlayer.ActorNumber);
+            SetClientConnectionState(LocalConnectionState.Started);
+            return true;
         }
 
         private bool StopClientHost()

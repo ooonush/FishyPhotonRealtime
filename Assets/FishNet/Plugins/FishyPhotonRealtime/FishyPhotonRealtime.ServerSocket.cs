@@ -1,5 +1,6 @@
-﻿using Photon.Realtime;
-using UnityEngine;
+﻿using System;
+using System.Threading.Tasks;
+using Photon.Realtime;
 
 namespace FishNet.Transporting.PhotonRealtime
 {
@@ -14,25 +15,53 @@ namespace FishNet.Transporting.PhotonRealtime
 
         public bool StartServer(CreateRoomData createRoomData = null)
         {
-            EnterRoomParams enterRoomParams = GetEnterRoomParams(createRoomData);
-            return StartServer(enterRoomParams);
+            if (StartServer(GetEnterRoomParams(createRoomData), out Task task))
+            {
+                Run(task);
+                return true;
+            }
+
+            return false;
         }
 
-        private bool StartServer(EnterRoomParams enterRoomParams)
+        public async Task StartServerAsync(CreateRoomData createRoomData = null)
         {
+            if (StartServer(GetEnterRoomParams(createRoomData), out Task task))
+            {
+                await task;
+            }
+            throw new Exception("Failed to start server.");
+        }
+
+        private bool StartServer(EnterRoomParams enterRoomParams, out Task task)
+        {
+            task = null;
             if (!IsServerStopped) return false;
 
             SetServerConnectionState(LocalConnectionState.Starting);
 
             if (_client.OpCreateRoom(enterRoomParams))
             {
-                Debug.Log(Time.time);
-                InitializeNetwork();
+                task = HandleServerStartingAsync(new JoinRoomOperationHandler(_client));
                 return true;
             }
-            
+
             SetServerConnectionState(LocalConnectionState.Stopped);
             return false;
+        }
+        
+        private async Task HandleServerStartingAsync(RealtimeOperationHandler operation)
+        {
+            try
+            {
+                await operation.Task;
+            }
+            catch (Exception)
+            {
+                StopServer();
+                throw;
+            }
+            SetServerConnectionState(LocalConnectionState.Started);
         }
 
         private void SetServerConnectionState(LocalConnectionState state)
@@ -64,7 +93,6 @@ namespace FishNet.Transporting.PhotonRealtime
             {
                 _client.OpLeaveRoom(false);
             }
-            DeinitializeNetwork();
             SetServerConnectionState(LocalConnectionState.Stopped);
 
             return true;

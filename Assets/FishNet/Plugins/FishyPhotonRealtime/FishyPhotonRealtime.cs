@@ -1,64 +1,24 @@
 using UnityEngine;
 using System;
+using System.Threading.Tasks;
 using Photon.Realtime;
 using ExitGames.Client.Photon;
 using FishNet.Transporting.PhotonRealtime.FishNet.Plugins.FishyPhotonRealtime;
 
 namespace FishNet.Transporting.PhotonRealtime
 {
-    [Serializable]
-    public enum JoinRoomMode : byte
-    {
-        ByName,
-        Random
-    }
-
     public partial class FishyPhotonRealtime : Transport
     {
         private const int KICK_CLIENT_CODE = 2;
 
-        private bool _isInitialized;
+        [SerializeField] public PhotonSettingsAsset PhotonSettings;
+        [SerializeField] public RoomOptions RoomOptions;
+        [SerializeField] private ConnectionData _connectionData;
         private readonly LoadBalancingClient _client = new LoadBalancingClient();
 
         private AppSettings AppSettings => PhotonSettings.AppSettings;
-
         public Room CurrentRoom => _client.CurrentRoom;
-
-        #region Configs
-
-        [SerializeField] public PhotonSettingsAsset PhotonSettings;
-        [SerializeField] public RoomOptions RoomOptions;
-
-        /// <summary>
-        /// Type (and behaviour) of the lobby.
-        /// </summary>
-        /// <remarks>
-        /// An empty or null Name always points to the "default lobby" as special case.
-        /// </remarks>
-        [Header("LOBBY")]
-        public LobbyType LobbyType;
-        /// <summary>
-        /// Name of the lobby. Default: null, pointing to the "default lobby".
-        /// </summary>
-        /// <remarks>
-        /// If Name is null or empty, a TypedLobby will point to the "default lobby". This ignores the Type value and always acts as  <see cref="LobbyType.Default"/>.
-        /// </remarks>
-        public string LobbyName;
-
-        /// <summary>The name of the room to create. If null, the server generates a unique name. If not null, it must be unique and new or will cause an error.</summary>
-        [Header("ENTER ROOM OPTIONS")]
-        public string RoomName;
-        /// <summary>The custom player properties that describe this client / user. Keys must be strings.</summary>
-        public Hashtable PlayerProperties;
-
-        /// <summary>The MatchmakingMode affects how rooms get filled. By default, the server fills rooms.</summary>
-        [Header("ENTER RANDOM ROOM OPTIONS")]
-        public JoinRoomMode ClientJoinRoomMode;
-        public MatchmakingMode MatchingType;
-        /// <summary>SQL query to filter room matches. For default-typed lobbies, use ExpectedCustomRoomProperties instead.</summary>
-        public string SqlLobbyFilter;
-
-        #endregion
+        public ConnectionData ConnectionData => _connectionData;
 
         #region Options
 
@@ -84,7 +44,6 @@ namespace FishNet.Transporting.PhotonRealtime
             Lobby = Photon.Realtime.TypedLobby.Default
         };
 
-
         private EnterRoomParams GetEnterRoomParams(
             Hashtable customRoomProperties = null,
             string[] customRoomPropertiesForLobby = null,
@@ -92,10 +51,10 @@ namespace FishNet.Transporting.PhotonRealtime
             Hashtable playerProperties = null)
         {
             _enterRoomParams.RoomOptions = GetRoomOptions(customRoomProperties, customRoomPropertiesForLobby);
-            _enterRoomParams.RoomName = RoomName;
+            _enterRoomParams.RoomName = ConnectionData.RoomName;
             _enterRoomParams.ExpectedUsers = expectedUsers;
-            _enterRoomParams.Lobby.Name = LobbyName;
-            _enterRoomParams.Lobby.Type = (Photon.Realtime.LobbyType)LobbyType;
+            _enterRoomParams.Lobby.Name = ConnectionData.LobbyName;
+            _enterRoomParams.Lobby.Type = (Photon.Realtime.LobbyType)ConnectionData.LobbyType;
             _enterRoomParams.PlayerProperties = playerProperties;
             return _enterRoomParams;
         }
@@ -106,10 +65,10 @@ namespace FishNet.Transporting.PhotonRealtime
             _joinRandomRoomParams.Ticket = ticket;
             _joinRandomRoomParams.ExpectedUsers = expectedUsers;
             _joinRandomRoomParams.ExpectedMaxPlayers = RoomOptions.MaxPlayers;
-            _joinRandomRoomParams.MatchingType = MatchingType;
-            _joinRandomRoomParams.TypedLobby.Name = LobbyName;
-            _joinRandomRoomParams.TypedLobby.Type = (Photon.Realtime.LobbyType)LobbyType;
-            _joinRandomRoomParams.SqlLobbyFilter = SqlLobbyFilter;
+            _joinRandomRoomParams.MatchingType = ConnectionData.MatchmakingMode;
+            _joinRandomRoomParams.TypedLobby.Name = ConnectionData.LobbyName;
+            _joinRandomRoomParams.TypedLobby.Type = (Photon.Realtime.LobbyType)ConnectionData.LobbyType;
+            _joinRandomRoomParams.SqlLobbyFilter = ConnectionData.MatchmakingSqlLobbyFilter;
             
             return _joinRandomRoomParams;
         }
@@ -164,6 +123,11 @@ namespace FishNet.Transporting.PhotonRealtime
 
         #endregion
 
+        private void Awake()
+        {
+            _client.AddCallbackTarget(this);
+        }
+
         private void Update()
         {
             if (IsClientStopped && IsServerStopped)
@@ -175,11 +139,47 @@ namespace FishNet.Transporting.PhotonRealtime
         private void OnDestroy()
         {
             Shutdown();
+            _client.RemoveCallbackTarget(this);
         }
 
-        public bool ConnectUsingSettings()
+        private static async void Run(Task task)
         {
-            return _client.ConnectUsingSettings(AppSettings);
+            await task;
+        }
+
+        public async Task ConnectAsync()
+        {
+            if (ConnectUsingSettingsAsync(out Task task))
+            {
+                await task;
+            }
+            else
+            {
+                throw new Exception("Failed to connect using settings.");
+            }
+        }
+
+        private bool ConnectUsingSettingsAsync(out Task task)
+        {
+            if (_client.ConnectUsingSettings(AppSettings))
+            {
+                var operation = new ConnectToMasterOperationHandler(_client);
+                task = operation.Task;
+                return true;
+            }
+            
+            task = null;
+            return false;
+        }
+
+        public void Disconnect()
+        {
+             _client.Disconnect();
+        }
+
+        public async void StartServerTestAsync()
+        {
+            await StartServerAsync();
         }
 
         private bool StartQuickConnection(JoinRandomRoomData joinRandomRoomData = null, CreateRoomData createRoomData = null)
@@ -193,7 +193,6 @@ namespace FishNet.Transporting.PhotonRealtime
             
             if (_client.OpJoinRandomOrCreateRoom(joinParams, createParams))
             {
-                InitializeNetwork();
                 return true;
             }
             
@@ -204,30 +203,6 @@ namespace FishNet.Transporting.PhotonRealtime
         private static SendOptions SelectSendOptions(Channel channel)
         {
             return channel == Channel.Reliable ? SendOptions.SendReliable : SendOptions.SendUnreliable;
-        }
-
-        private void InitializeNetwork()
-        {
-            if (_isInitialized)
-            {
-                NetworkManager.LogWarning("Already initialized.");
-                return;
-            }
-
-            _isInitialized = true;
-            _client.AddCallbackTarget(this);
-        }
-
-        private void DeinitializeNetwork()
-        {
-            if (!_isInitialized)
-            {
-                NetworkManager.LogWarning("Not initialized.");
-                return;
-            }
-
-            _isInitialized = false;
-            _client.RemoveCallbackTarget(this);
         }
 
         public override event Action<ClientReceivedDataArgs> OnClientReceivedData;
@@ -360,13 +335,8 @@ namespace FishNet.Transporting.PhotonRealtime
             {
                 return StartServer();
             }
-            
-            return ClientJoinRoomMode switch
-            {
-                JoinRoomMode.ByName => StartClient(),
-                JoinRoomMode.Random => StartClientRandomRoom(),
-                _ => throw new ArgumentOutOfRangeException(nameof(ClientJoinRoomMode), ClientJoinRoomMode, null)
-            };
+
+            return string.IsNullOrEmpty(ConnectionData.RoomName) ? StartClientRandomRoom() : StartClient();
         }
 
         public override bool StopConnection(bool server)
