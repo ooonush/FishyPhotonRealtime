@@ -178,6 +178,7 @@ namespace FishNet.Transporting.PhotonRealtime
         public void Disconnect()
         {
              _client.Disconnect();
+             _client.Service();
         }
 
         private bool StartQuickConnection(JoinRandomRoomData joinRandomRoomData = null, CreateRoomData createRoomData = null)
