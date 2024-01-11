@@ -145,6 +145,7 @@ namespace FishNet.Transporting.PhotonRealtime
 
             if (IsServerStarted || IsServerStarting)
             {
+                task = Task.CompletedTask;
                 return StartClientHost();
             }
 
