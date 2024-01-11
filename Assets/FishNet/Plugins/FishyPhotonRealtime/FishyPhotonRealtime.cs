@@ -19,6 +19,9 @@ namespace FishNet.Transporting.PhotonRealtime
         private AppSettings AppSettings => PhotonSettings.AppSettings;
         public Room CurrentRoom => _client.CurrentRoom;
         public ConnectionData ConnectionData => _connectionData;
+        public bool IsConnected => _client.IsConnected;
+        public ClientState State => _client.State;
+
 
         #region Options
 
@@ -26,7 +29,7 @@ namespace FishNet.Transporting.PhotonRealtime
 
         private readonly OpJoinRandomRoomParams _joinRandomRoomParams = new OpJoinRandomRoomParams
         {
-            TypedLobby = Photon.Realtime.TypedLobby.Default
+            TypedLobby = TypedLobby.Default
         };
 
         private readonly RaiseEventOptions _raiseToMasterOptions = new RaiseEventOptions
@@ -175,11 +178,6 @@ namespace FishNet.Transporting.PhotonRealtime
         public void Disconnect()
         {
              _client.Disconnect();
-        }
-
-        public async void StartServerTestAsync()
-        {
-            await StartServerAsync();
         }
 
         private bool StartQuickConnection(JoinRandomRoomData joinRandomRoomData = null, CreateRoomData createRoomData = null)
