@@ -36,13 +36,13 @@ namespace FishNet.Transporting.PhotonRealtime
         protected void Complete()
         {
             End();
-            _completionSource.SetResult(true);
+            _completionSource.TrySetResult(true);
         }
 
         public void Cancel()
         {
             End();
-            _completionSource.SetCanceled();
+            _completionSource.TrySetCanceled();
         }
 
         protected void SetException(Exception e)

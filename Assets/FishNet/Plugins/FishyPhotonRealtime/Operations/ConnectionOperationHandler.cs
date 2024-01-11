@@ -29,12 +29,10 @@ namespace FishNet.Transporting.PhotonRealtime
 
         public virtual void OnDisconnected(DisconnectCause cause)
         {
-            SetException(new InvalidOperationException($"Disconnected from server with cause: {cause}."));
         }
 
         public virtual void OnCustomAuthenticationFailed(string debugMessage)
         {
-            SetException(new InvalidOperationException(debugMessage));
         }
     }
 }

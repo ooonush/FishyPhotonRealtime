@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using Photon.Realtime;
 
@@ -12,6 +13,16 @@ namespace FishNet.Transporting.PhotonRealtime
         public override void OnConnectedToMaster()
         {
             Complete();
+        }
+
+        public override void OnDisconnected(DisconnectCause cause)
+        {
+            SetException(new InvalidOperationException($"Disconnected from server with cause: {cause}."));
+        }
+
+        public override void OnCustomAuthenticationFailed(string debugMessage)
+        {
+            SetException(new InvalidOperationException(debugMessage));
         }
     }
 }

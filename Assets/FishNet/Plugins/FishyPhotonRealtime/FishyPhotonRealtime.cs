@@ -1,6 +1,5 @@
 using UnityEngine;
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 using Photon.Realtime;
 using ExitGames.Client.Photon;
@@ -16,6 +15,7 @@ namespace FishNet.Transporting.PhotonRealtime
         [SerializeField] public RoomOptions RoomOptions;
         [SerializeField] private ConnectionData _connectionData;
         private readonly LoadBalancingClient _client = new LoadBalancingClient();
+        private Task _connectTask;
 
         private AppSettings AppSettings => PhotonSettings.AppSettings;
         public Room CurrentRoom => _client.CurrentRoom;
@@ -27,6 +27,7 @@ namespace FishNet.Transporting.PhotonRealtime
         #region Options
 
         private readonly Photon.Realtime.RoomOptions _roomOptions = new Photon.Realtime.RoomOptions();
+
 
         private readonly OpJoinRandomRoomParams _joinRandomRoomParams = new OpJoinRandomRoomParams
         {
@@ -151,8 +152,6 @@ namespace FishNet.Transporting.PhotonRealtime
             await task;
         }
 
-        private CancellationTokenSource _cancellationTokenSource;
-
         public async Task ConnectAsync()
         {
             if (ConnectUsingSettingsAsync(out Task task))
@@ -167,12 +166,16 @@ namespace FishNet.Transporting.PhotonRealtime
 
         private bool ConnectUsingSettingsAsync(out Task task)
         {
+            if (_client.IsConnected)
+            {
+                task = Task.FromException(new InvalidOperationException("Client still connected"));
+                return false;
+            }
             if (_client.ConnectUsingSettings(AppSettings))
             {
-                _cancellationTokenSource?.Dispose();
-                _cancellationTokenSource = new CancellationTokenSource();
-                var operation = new ConnectToMasterOperationHandler(_client, _cancellationTokenSource.Token);
+                var operation = new ConnectToMasterOperationHandler(_client);
                 task = operation.Task;
+                _connectTask = operation.Task;
                 return true;
             }
             
@@ -180,11 +183,19 @@ namespace FishNet.Transporting.PhotonRealtime
             return false;
         }
 
-        public void Disconnect()
+        public async Task DisconnectAsync()
         {
-            _cancellationTokenSource?.Cancel();
-             _client.Disconnect();
-             _client.Service();
+            if (_connectTask is { IsCompleted: false })
+            {
+                await _connectTask;
+            }
+            if (!_client.IsConnected)
+            {
+                return;
+            }
+            var operation = new DisconnectOperationHandler(_client);
+            _client.Disconnect();
+            await operation.Task;
         }
 
         private bool StartQuickConnection(JoinRandomRoomData joinRandomRoomData = null, CreateRoomData createRoomData = null)
