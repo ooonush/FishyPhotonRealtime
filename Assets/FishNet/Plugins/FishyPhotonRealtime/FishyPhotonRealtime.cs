@@ -21,6 +21,7 @@ namespace FishNet.Transporting.PhotonRealtime
         public ConnectionData ConnectionData => _connectionData;
         public bool IsConnected => _client.IsConnected;
         public ClientState State => _client.State;
+        public string CloudRegion => _client.CloudRegion;
 
         #region Options
 
