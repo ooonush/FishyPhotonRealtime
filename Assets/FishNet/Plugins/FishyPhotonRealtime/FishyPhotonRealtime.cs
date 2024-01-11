@@ -1,5 +1,6 @@
 using UnityEngine;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Photon.Realtime;
 using ExitGames.Client.Photon;
@@ -150,6 +151,8 @@ namespace FishNet.Transporting.PhotonRealtime
             await task;
         }
 
+        private CancellationTokenSource _cancellationTokenSource;
+
         public async Task ConnectAsync()
         {
             if (ConnectUsingSettingsAsync(out Task task))
@@ -166,7 +169,9 @@ namespace FishNet.Transporting.PhotonRealtime
         {
             if (_client.ConnectUsingSettings(AppSettings))
             {
-                var operation = new ConnectToMasterOperationHandler(_client);
+                _cancellationTokenSource?.Dispose();
+                _cancellationTokenSource = new CancellationTokenSource();
+                var operation = new ConnectToMasterOperationHandler(_client, _cancellationTokenSource.Token);
                 task = operation.Task;
                 return true;
             }
@@ -177,6 +182,7 @@ namespace FishNet.Transporting.PhotonRealtime
 
         public void Disconnect()
         {
+            _cancellationTokenSource?.Cancel();
              _client.Disconnect();
              _client.Service();
         }
