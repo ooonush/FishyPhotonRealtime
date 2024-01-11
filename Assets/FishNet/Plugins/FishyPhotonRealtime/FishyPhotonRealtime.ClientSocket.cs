@@ -60,20 +60,20 @@ namespace FishNet.Transporting.PhotonRealtime
 
         public async Task StartClientAsync(JoinRoomData joinRoomData = null)
         {
-            if (StartClient(GetEnterRoomParams(joinRoomData), out Task task))
+            if (!StartClient(GetEnterRoomParams(joinRoomData), out Task task))
             {
-                await task;
+                throw new Exception("Failed to start client.");
             }
-            throw new Exception("Failed to start client.");
+            await task;
         }
 
         public async Task StartClientRandomRoomAsync(JoinRandomRoomData joinRandomRoomData = null)
         {
-            if (StartClientRandomRoom(GetJoinRandomRoomParams(joinRandomRoomData), out Task task))
+            if (!StartClientRandomRoom(GetJoinRandomRoomParams(joinRandomRoomData), out Task task))
             {
-                await task;
+                throw new Exception("Failed to start client.");
             }
-            throw new Exception("Failed to start client.");
+            await task;
         }
 
         private void SetClientConnectionState(LocalConnectionState state)
