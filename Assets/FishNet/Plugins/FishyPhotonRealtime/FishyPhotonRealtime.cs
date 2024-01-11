@@ -22,7 +22,6 @@ namespace FishNet.Transporting.PhotonRealtime
         public bool IsConnected => _client.IsConnected;
         public ClientState State => _client.State;
 
-
         #region Options
 
         private readonly Photon.Realtime.RoomOptions _roomOptions = new Photon.Realtime.RoomOptions();

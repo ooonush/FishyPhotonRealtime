@@ -26,11 +26,11 @@ namespace FishNet.Transporting.PhotonRealtime
 
         public async Task StartServerAsync(CreateRoomData createRoomData = null)
         {
-            if (StartServer(GetEnterRoomParams(createRoomData), out Task task))
+            if (!StartServer(GetEnterRoomParams(createRoomData), out Task task))
             {
-                await task;
+                throw new Exception("Failed to start server.");
             }
-            throw new Exception("Failed to start server.");
+            await task;
         }
 
         private bool StartServer(EnterRoomParams enterRoomParams, out Task task)
