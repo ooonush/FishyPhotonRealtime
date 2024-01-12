@@ -13,7 +13,7 @@ namespace FishNet.Transporting.PhotonRealtime
                 StopConnection(false);
                 return;
             }
-            if (photonEvent.Code != (byte)Channel.Unreliable && photonEvent.Code != (byte)Channel.Reliable)
+            if (photonEvent.Code != (byte)Channel.Reliable && photonEvent.Code != (byte)Channel.Unreliable)
             {
                 return;
             }

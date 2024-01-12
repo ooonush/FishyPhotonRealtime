@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Photon.Realtime;
+using UnityEngine;
 
 namespace FishNet.Transporting.PhotonRealtime
 {
@@ -32,24 +33,29 @@ namespace FishNet.Transporting.PhotonRealtime
             }
             await task;
         }
-
+        
         private bool StartServer(EnterRoomParams enterRoomParams, out Task task)
         {
             task = null;
             if (!IsServerStopped) return false;
-
+            if (_client == null)
+            {
+                Debug.LogWarning("Client not initialized. Call ConnectAsync() first.");
+                return false;
+            }
+            
             SetServerConnectionState(LocalConnectionState.Starting);
-
+            
             if (_client.OpCreateRoom(enterRoomParams))
             {
                 task = HandleServerStartingAsync(new JoinRoomOperationHandler(_client));
                 return true;
             }
-
+            
             SetServerConnectionState(LocalConnectionState.Stopped);
             return false;
         }
-        
+
         private async Task HandleServerStartingAsync(RealtimeOperationHandler operation)
         {
             try

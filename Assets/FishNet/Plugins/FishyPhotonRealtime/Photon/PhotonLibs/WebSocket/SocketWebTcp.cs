@@ -17,7 +17,6 @@ namespace ExitGames.Client.Photon
     using System.Collections;
     using UnityEngine;
     using UnityEngine.Scripting;
-    using SupportClassPun = SupportClass;
 
 
     /// <summary>

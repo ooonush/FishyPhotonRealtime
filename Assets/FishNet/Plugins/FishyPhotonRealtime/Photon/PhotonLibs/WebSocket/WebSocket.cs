@@ -12,9 +12,8 @@ namespace ExitGames.Client.Photon
 {
     using System;
     using System.Text;
-    using ExitGames.Client.Photon;
 
-    #if UNITY_WEBGL && !UNITY_EDITOR
+#if UNITY_WEBGL && !UNITY_EDITOR
     using System.Runtime.InteropServices;
     #else
     using WebSocketSharp;

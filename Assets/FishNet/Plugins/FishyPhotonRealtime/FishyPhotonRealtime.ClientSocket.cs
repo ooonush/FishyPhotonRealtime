@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using FishNet.Utility.Performance;
 using Photon.Realtime;
+using UnityEngine;
 
 namespace FishNet.Transporting.PhotonRealtime
 {
@@ -117,21 +118,30 @@ namespace FishNet.Transporting.PhotonRealtime
         {
             task = null;
             if (!CanStartClient) return false;
-
+            if (_client == null)
+            {
+                Debug.LogWarning("Client not initialized. Call ConnectAsync() first.");
+                return false;
+            }
+            
             SetClientConnectionState(LocalConnectionState.Starting);
-
+            
             if (IsServerStarted || IsServerStarting)
             {
-                task = Task.CompletedTask;
-                return StartClientHost();
+                if (StartClientHost())
+                {
+                    task = Task.CompletedTask;
+                    return true;
+                }
+                return false;
             }
-
+            
             if (_client.OpJoinRoom(enterRoomParams))
             {
                 task = HandleClientStartingAsync(new JoinRoomOperationHandler(_client));
                 return true;
             }
-
+            
             SetClientConnectionState(LocalConnectionState.Stopped);
             return false;
         }
@@ -140,21 +150,26 @@ namespace FishNet.Transporting.PhotonRealtime
         {
             task = null;
             if (!CanStartClient) return false;
-
+            if (_client == null)
+            {
+                Debug.LogWarning("Client not initialized. Call ConnectAsync() first.");
+                return false;
+            }
+            
             SetClientConnectionState(LocalConnectionState.Starting);
-
+            
             if (IsServerStarted || IsServerStarting)
             {
                 task = Task.CompletedTask;
                 return StartClientHost();
             }
-
+            
             if (_client.OpJoinRandomRoom(joinRandomRoomParams))
             {
                 task = HandleClientStartingAsync(new JoinRoomOperationHandler(_client));
                 return true;
             }
-
+            
             SetClientConnectionState(LocalConnectionState.Stopped);
             return false;
         }

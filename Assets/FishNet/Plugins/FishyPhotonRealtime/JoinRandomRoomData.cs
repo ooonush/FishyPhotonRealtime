@@ -6,6 +6,7 @@ namespace FishNet.Transporting.PhotonRealtime
     {
         public string[] ExpectedUsers;
         public Hashtable CustomRoomProperties;
+        public string SqlLobbyFilter;
         public object Ticket;
     }
 }
