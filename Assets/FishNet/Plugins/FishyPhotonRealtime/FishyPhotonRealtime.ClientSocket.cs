@@ -104,7 +104,7 @@ namespace FishNet.Transporting.PhotonRealtime
 
             SetClientConnectionState(LocalConnectionState.Stopping);
 
-            if (_client.InRoom)
+            if (_client is { InRoom: true })
             {
                 _client.OpLeaveRoom(false);
             }
